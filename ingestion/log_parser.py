@@ -13,6 +13,7 @@ NORMALIZED_FIELDS = [
     "status",
     "message",
     "source",
+    "source_type",
 ]
 
 COLUMN_ALIASES = {
@@ -25,6 +26,7 @@ COLUMN_ALIASES = {
     "status": ["status", "result", "outcome"],
     "message": ["message", "request", "details"],
     "source": ["source", "log_source", "service"],
+    "source_type": ["source_type", "dataset"],
 }
 
 
@@ -36,42 +38,36 @@ def _find_column(df: pd.DataFrame, aliases: list[str]) -> str | None:
     return None
 
 
-def parse_log_file(file_path: str | Path) -> pd.DataFrame:
+def parse_log_file(file_path: str | Path, source_type: str = "sample") -> pd.DataFrame:
     df = pd.read_csv(file_path)
     normalized = pd.DataFrame()
 
     for normalized_field, aliases in COLUMN_ALIASES.items():
         source_column = _find_column(df, aliases)
-        normalized[normalized_field] = (
-            df[source_column] if source_column else ""
-        )
+        normalized[normalized_field] = df[source_column] if source_column else ""
 
-    normalized["timestamp"] = pd.to_datetime(
-        normalized["timestamp"], errors="coerce"
-    )
+    normalized["timestamp"] = pd.to_datetime(normalized["timestamp"], errors="coerce")
     normalized = normalized.dropna(subset=["timestamp"])
-    normalized["timestamp"] = normalized["timestamp"].dt.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    normalized["timestamp"] = normalized["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
     for field in NORMALIZED_FIELDS:
         normalized[field] = normalized[field].fillna("").astype(str)
 
-    # Keep optional fields if they exist and are useful for detections.
     if "destination_port" in df.columns:
-        normalized["destination_port"] = pd.to_numeric(
-            df["destination_port"], errors="coerce"
-        )
+        normalized["destination_port"] = pd.to_numeric(df["destination_port"], errors="coerce")
+
+    if "source_type" not in df.columns:
+        normalized["source_type"] = source_type
 
     return normalized
 
 
-def parse_log_directory(directory_path: str | Path) -> pd.DataFrame:
+def parse_log_directory(directory_path: str | Path, source_type: str = "sample") -> pd.DataFrame:
     directory = Path(directory_path)
     parsed_frames = []
 
     for csv_file in sorted(directory.glob("*.csv")):
-        frame = parse_log_file(csv_file)
+        frame = parse_log_file(csv_file, source_type=source_type)
         if not frame.empty:
             parsed_frames.append(frame)
 

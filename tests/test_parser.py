@@ -33,7 +33,9 @@ def test_parse_log_file_normalizes_required_fields(tmp_path):
         "status",
         "message",
         "source",
+        "source_type",
     }
     assert expected_columns.issubset(set(parsed.columns))
     assert parsed.iloc[0]["source_ip"] == "10.0.0.1"
     assert parsed.iloc[0]["status"] == "failed"
+    assert parsed.iloc[0]["source_type"] == "sample"
